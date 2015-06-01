@@ -80,6 +80,31 @@ class PillowImageState(ImageState):
         state.f.seek(0)
         image = _PIL_Image().open(state.f)
         image.load()
+
+        # JPEG files can be orientated using an EXIF tag.
+        # Make sure this orientation is applied to the data
+        if isinstance(state, JPEGImageFileState):
+            if hasattr(image, '_getexif'):
+                exif = image._getexif()
+                if exif is not None:
+                    # 0x0112 = Orientation
+                    orientation = exif.get(0x0112, 1)
+
+                    Image = _PIL_Image()
+                    ORIENTATION_TO_TRANSPOSE = {
+                        1: (),
+                        2: (Image.FLIP_LEFT_RIGHT,),
+                        3: (Image.ROTATE_180,),
+                        4: (Image.ROTATE_180, Image.FLIP_LEFT_RIGHT),
+                        5: (Image.ROTATE_270, Image.FLIP_LEFT_RIGHT),
+                        6: (Image.ROTATE_270,),
+                        7: (Image.ROTATE_90, Image.FLIP_LEFT_RIGHT),
+                        8: (Image.ROTATE_90,),
+                    }
+
+                    for transpose in ORIENTATION_TO_TRANSPOSE[orientation]:
+                        image = image.transpose(transpose)
+
         return cls(image)
 
     @ImageState.converter_to(RGBImageBufferState)
